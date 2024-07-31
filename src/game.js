@@ -1,168 +1,205 @@
 const config = {
     type: Phaser.AUTO,
-    parent: 'game',
-    width: 800,
-    height: 640,
-    scale: {
-        mode: Phaser.Scale.RESIZE,
-        autoCenter: Phaser.Scale.CENTER_BOTH
-    },
+    width: 1000,
+    height: 800,
     scene: {
-        preload,
-        create,
-        update,
-    },
-    physics: {
-        default: 'arcade',
-        arcade: {
-            gravity: false,
-        }
+        preload: preload,
+        create: create,
+        update: update
     }
 };
 
 const game = new Phaser.Game(config);
-
-let player, ball, cursors;
-const keys = {};
-let gameStarted = false;
-let openingText, player1VictoryText, player2VictoryText;
+let deck, playerHand, dealerHand, playerText, dealerText, messageText, hitButton, standButton, resetButton, startButton, gameOver;
+let playerCardSprites = [], dealerCardSprites = [], jokeText;
 
 function preload() {
-    this.load.image('ball', '../assets/images/ball.png');
-    this.load.image('paddle', '../assets/images/paddle.png');
+    this.load.image('cardBack', '/assets/images/card_back_red.png');
+    this.load.atlasXML('cards', '/assets/images/playingCards.png', '/assets/playingCards.xml'); // Replace with actual paths
 }
 
 function create() {
-    ball = this.physics.add.sprite(
-        this.physics.world.bounds.width / 2, // x position
-        this.physics.world.bounds.height / 2, // y position
-        'ball' // key of image for the sprite
-    );
-    ball.setVisible(false);
-        
-    player1 = this.physics.add.sprite(
-        this.physics.world.bounds.width - (ball.body.width / 2 + 1), // x position
-        this.physics.world.bounds.height / 2, // y position
-        'paddle', // key of image for the sprite
-    );
-
-    player2 = this.physics.add.sprite(
-        (ball.body.width / 2 + 1), // x position
-        this.physics.world.bounds.height / 2, // y position
-        'paddle', // key of image for the sprite
-    );
-
-    cursors = this.input.keyboard.createCursorKeys();
-    keys.w = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W);
-    keys.s = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S);
-
-    player1.setCollideWorldBounds(true);
-    player2.setCollideWorldBounds(true);
-    ball.setCollideWorldBounds(true);
-    ball.setBounce(1, 1);
-    player1.setImmovable(true);
-    player2.setImmovable(true);
-    this.physics.add.collider(ball, player1, null, null, this);
-    this.physics.add.collider(ball, player2, null, null, this);
-
-    openingText = this.add.text(
-        this.physics.world.bounds.width / 2,
-        this.physics.world.bounds.height / 2,
-        'Press SPACE to Start',
-        {
-            fontFamily: 'Monaco, Courier, monospace',
-            fontSize: '50px',
-            fill: '#fff'
-        }
-    );
+    this.cameras.main.setBackgroundColor('#228B22');
     
-    openingText.setOrigin(0.5);
+    this.add.text(config.width / 2, 50, 'Blackjack Game', { fontSize: '32px', fill: '#fff' }).setOrigin(0.5);
 
-    // Create player 1 victory text
-    player1VictoryText = this.add.text(
-        this.physics.world.bounds.width / 2,
-        this.physics.world.bounds.height / 2,
-        'Point for player 1!',
-        {
-            fontFamily: 'Monaco, Courier, monospace',
-            fontSize: '50px',
-            fill: '#fff'
-        }
-    );
-  
-    player1VictoryText.setOrigin(0.5);
+    fetchRandomJoke(this);
 
-    // Make it invisible until the player loses
-    player1VictoryText.setVisible(false);
-
-    // Create the game won text
-    player2VictoryText = this.add.text(
-        this.physics.world.bounds.width / 2,
-        this.physics.world.bounds.height / 2,
-        'Point for player 2!',
-        {
-            fontFamily: 'Monaco, Courier, monospace',
-            fontSize: '50px',
-            fill: '#fff'
-        }
-    );
-
-    player2VictoryText.setOrigin(0.5);
-
-    // Make it invisible until the player wins
-    player2VictoryText.setVisible(false);
+    startButton = this.add.text(config.width / 2, 160, 'Start Game', { fontSize: '32px', fill: '#f00' })
+        .setOrigin(0.5)
+        .setInteractive()
+        .on('pointerdown', () => startGame(this));
 }
 
-function update() {
-    if (isPlayer1Point()) {
-        player1VictoryText.setVisible(true);
-        ball.disableBody(true, true);
-        return;
+function update() {}
+
+function fetchRandomJoke(scene) {
+    fetch('https://v2.jokeapi.dev/joke/Any?type=single')
+        .then(response => response.json())
+        .then(data => {
+            const joke = data.joke;
+            jokeText = scene.add.text(config.width / 2, 120, joke, { fontSize: '18px', fill: '#fff', wordWrap: { width: 900 } }).setOrigin(0.5);
+        })
+        .catch(error => {
+            console.error('Error fetching the joke:', error);
+        });
+}
+
+function createDeck() {
+    const suits = ['hearts', 'diamonds', 'clubs', 'spades'];
+    const values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+    let deck = [];
+    for (let suit of suits) {
+        for (let value of values) {
+            deck.push({ suit, value });
+        }
     }
-    if (isPlayer2Point()) {
-        player2VictoryText.setVisible(true);
-        ball.disableBody(true, true);
-        return;
+    return deck;
+}
+
+function shuffleDeck(deck) {
+    for (let i = deck.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+}
+
+function drawCard() {
+    return deck.pop();
+}
+
+function getCardValue(card) {
+    if (card.value === 'A') return 11;
+    if (['K', 'Q', 'J'].includes(card.value)) return 10;
+    return parseInt(card.value);
+}
+
+function getHandValue(hand) {
+    let value = hand.reduce((sum, card) => sum + getCardValue(card), 0);
+    let aces = hand.filter(card => card.value === 'A').length;
+    while (value > 21 && aces > 0) {
+        value -= 10;
+        aces--;
+    }
+    return value;
+}
+
+function playerHit() {
+    if (gameOver) return;
+    playerHand.push(drawCard());
+    playerText.setText(`Player: ${getHandValue(playerHand)}`);
+    if (getHandValue(playerHand) > 21) {
+        messageText.setText('Player busts! Dealer wins.');
+        gameOver = true;
+    }
+    displayHand(this, playerHand, 150, 450, 'Player');
+}
+
+function playerStand() {
+    if (gameOver) return;
+    dealerText.setText(`Dealer: ${getHandValue(dealerHand)}`);
+    while (getHandValue(dealerHand) < 17) {
+        dealerHand.push(drawCard());
+        dealerText.setText(`Dealer: ${getHandValue(dealerHand)}`);
+        displayHand(this, dealerHand, 150, 200, 'Dealer', false);
+    }
+    if (getHandValue(dealerHand) > 21) {
+        messageText.setText('Dealer busts! Player wins.');
+    } else if (getHandValue(dealerHand) >= getHandValue(playerHand)) {
+        messageText.setText('Dealer wins.');
+    } else {
+        messageText.setText('Player wins.');
+    }
+    gameOver = true;
+}
+
+function displayHand(scene, hand, x, y, owner, hideSecondCard = false) {
+
+    if (owner === 'Player') {
+        playerCardSprites.forEach(sprite => sprite.destroy());
+        playerCardSprites = [];
+    } else {
+        dealerCardSprites.forEach(sprite => sprite.destroy());
+        dealerCardSprites = [];
     }
 
-    player1.body.setVelocityY(0);
-    player2.body.setVelocityY(0);
+    hand.forEach((card, index) => {
+        let cardImage = hideSecondCard && index > 0 ? 'cardBack' : getCardImageKey(card);
+        const sprite = scene.add.image(x + index * 60, y, 'cards', cardImage).setScale(0.5);
+        if (owner === 'Player') {
+            playerCardSprites.push(sprite);
+        } else {
+            dealerCardSprites.push(sprite);
+        }
+    });
+}
 
-    if (cursors.up.isDown) {
-        player1.body.setVelocityY(-350);
-    } else if (cursors.down.isDown) {
-        player1.body.setVelocityY(350);
-    }
-    // TODO: Allow player to move forward
+function getCardImageKey(card) {
+    const suitMap = {
+        'hearts': 'Hearts',
+        'diamonds': 'Diamonds',
+        'clubs': 'Clubs',
+        'spades': 'Spades'
+    };
+    return `card${suitMap[card.suit]}${card.value}`;
+}
+
+function resetGame() {
+    gameOver = false;
+
+
+    deck = createDeck();
+    shuffleDeck(deck);
+
+    playerHand = [drawCard(), drawCard()];
+    dealerHand = [drawCard(), drawCard()];
+
+    displayHand(this, playerHand, 150, 450, 'Player');
+    displayHand(this, dealerHand, 150, 200, 'Dealer', true);
+    playerText.setText(`Player: ${getHandValue(playerHand)}`);
+    dealerText.setText(`Dealer: ${getHandValue([dealerHand[0]])} + ?`);
+    messageText.setText('');
+
+    hitButton.setInteractive();
+    standButton.setInteractive();
+}
+
+function startGame(scene) {
+    if (jokeText) jokeText.destroy();
+
+    initGame(scene);
+
+    startButton.setVisible(false);
     
-    if (keys.w.isDown) {
-        player2.body.setVelocityY(-350);
-    } else if (keys.s.isDown) {
-        player2.body.setVelocityY(350);
-    }
-    // TODO: Allow player to move forward
-
-    if (!gameStarted) {
-        if (cursors.space.isDown) {
-            ball.setVisible(true);
-            gameStarted = true;
-            const initialXSpeed = Math.random() * 200 + 50;
-            const initialYSpeed = Math.random() * 200 + 50;
-            ball.setVelocityX(initialXSpeed);
-            ball.setVelocityY(initialYSpeed);
-            openingText.setVisible(false);
-        }
-    }
+    hitButton.setVisible(true);
+    standButton.setVisible(true);
+    resetButton.setVisible(true);
 }
 
-function isPlayer1Point() {
-    return ball.body.x < player2.body.x;
-}
+function initGame(scene) {
+    deck = createDeck();
+    shuffleDeck(deck);
+    playerHand = [drawCard(), drawCard()];
+    dealerHand = [drawCard(), drawCard()];
 
-function isPlayer2Point() {
-    return ball.body.x > player1.body.x;
-}
+    displayHand(scene, playerHand, 150, 450, 'Player');
+    displayHand(scene, dealerHand, 150, 200, 'Dealer', true);
 
-function hitPlayer(ball, player) {
-    // custom logic for changing ball x or y velocity
+    playerText = scene.add.text(150, 550, `Player: ${getHandValue(playerHand)}`, { fontSize: '32px', fill: '#fff' });
+    dealerText = scene.add.text(150, 100, `Dealer: ${getHandValue([dealerHand[0]])} + ?`, { fontSize: '32px', fill: '#fff' });
+    messageText = scene.add.text(500, 650, '', { fontSize: '32px', fill: '#fff' }).setOrigin(0.5);
+
+    hitButton = scene.add.text(800, 450, 'Hit', { fontSize: '32px', fill: '#0f0' })
+        .setInteractive()
+        .on('pointerdown', playerHit, scene);
+    standButton = scene.add.text(800, 500, 'Stand', { fontSize: '32px', fill: '#0f0' })
+        .setInteractive()
+        .on('pointerdown', playerStand, scene);
+    resetButton = scene.add.text(800, 550, 'Reset', { fontSize: '32px', fill: '#f00' })
+        .setInteractive()
+        .on('pointerdown', resetGame, scene);
+
+    hitButton.setVisible(false);
+    standButton.setVisible(false);
+    resetButton.setVisible(false);
 }
