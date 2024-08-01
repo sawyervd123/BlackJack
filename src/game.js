@@ -15,7 +15,7 @@ let playerCardSprites = [], dealerCardSprites = [], jokeText;
 
 function preload() {
     this.load.image('cardBack', '/assets/images/card_back_red.png');
-    this.load.atlasXML('cards', '/assets/images/playingCards.png', '/assets/playingCards.xml');
+    this.load.atlasXML('cards', '/assets/images/playingCards.png', '/assets/playingCards.xml'); // Replace with actual paths
 }
 
 function create() {
@@ -124,6 +124,13 @@ function displayHand(scene, hand, x, y, owner, hideSecondCard = false) {
         const sprite = scene.add.image(x + index * 60, y, 'cards', cardImage).setScale(0.5);
         if (owner === 'Player') {
             playerCardSprites.push(sprite);
+            // Spin animation for player cards
+            scene.tweens.add({
+                targets: sprite,
+                angle: { from: 0, to: 360 },
+                duration: 500,
+                ease: 'Cubic.easeOut'
+            });
         } else {
             dealerCardSprites.push(sprite);
         }
@@ -189,7 +196,7 @@ function initGame(scene) {
 }
 
 function setBackgroundColorBasedOnState(scene) {
-    fetch('https://ipinfo.io/json?token=${token}') 
+    fetch('https://ipinfo.io/json?token=your_token_here') // Replace 'your_token_here' with your actual IPInfo token
         .then(response => response.json())
         .then(data => {
             const state = data.region;
@@ -253,7 +260,7 @@ function getColorByState(state) {
         'West Virginia': '#33FFA8',
         'Wisconsin': '#FFA833',
         'Wyoming': '#FF5733',
-        'default': '#228B22'
+        'default': '#228B22' // Default green if state is not found
     };
     return stateColors[state] || stateColors['default'];
 }
