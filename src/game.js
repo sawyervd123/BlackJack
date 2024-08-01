@@ -196,7 +196,7 @@ function initGame(scene) {
 }
 
 function setBackgroundColorBasedOnState(scene) {
-    fetch('https://ipinfo.io/json?token=5f980a14e2b304') // Replace 'your_token_here' with your actual IPInfo token
+    fetch('https://ipinfo.io/json?token=5f980a14e2b304')
         .then(response => response.json())
         .then(data => {
             const state = data.region;
